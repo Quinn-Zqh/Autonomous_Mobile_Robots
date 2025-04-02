@@ -1,0 +1,60 @@
+# The assessment of A* path planning with no function calls. Find the shortest distance around an obstacle.
+class Node:
+    def __init__(self, position, g_cost, h_cost, parent=None):
+        self.position = position  #this node's position in the grid
+        self.cost_from_start = g_cost  #g_cost is cost from start to current position
+        self.cost_to_goal = h_cost #h_cost is heuristic cost from current to end position
+        self.total_cost = g_cost + h_cost #the sum is the total cost
+        self.parent = parent    #define parent node for path reconstruction
+
+# Implements the A* algorithm to find the minimum cost from start to end. Returns that no valid path found if no paths were found, or a list of the coordinates of a path if the shortest path was found.
+def do_a_star(grid, start, end, display_message):
+    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)] #define a list to show four directions using four coordinates
+    cols = len(grid[0]) #the number of grid columns is the number of elements per row
+    rows = len(grid) #the number of grid rows is the number of elements per column
+    visited = set() #this set records visited nodes
+    start_row, start_col = (start[1], start[0])  # convert start position to match grid indices
+    end_row, end_col = (end[1], end[0])  # convert end position to match grid indices
+    open_list = [Node((start_row, start_col), 0, ((end_row - start_row) ** 2 + (end_col - start_col) ** 2)**0.5)] # Initialize a list to save node. The g_cost is 0 and calculate h_cost based on the Euclidean distance
+
+    while open_list: 
+        min_cost = float('inf') #initialize min_cost to positive infinity
+        min_node = None  #initialize min_node to none
+
+        for node in open_list:
+            if node.total_cost < min_cost: #find least total_cost node.
+                min_cost = node.total_cost #update min_cost
+                min_node = node #update min_node
+        current_node = min_node #min_node is current_node
+        open_list.remove(current_node) #remove the current_node from open_list
+        current_pos = current_node.position #get current position into current_pos
+        if current_pos in visited: #skip the loop if it has been processed to avoid repetition
+            continue
+        visited.add(current_pos) #put current position into visited set
+        if current_pos == (end_row, end_col): #determine if the end has been reached
+            path = [] #an empty list to save path from start to end
+            current = current_node 
+            
+            while current: #trackback
+                path.append((current.position[1], current.position[0]))  # convert back to (x, y) format
+                current = current.parent #update parent node
+            path.reverse()   # reverse the path to get it from start to end
+            display_message("The path is: " + str(path))    # show the path taken from start to end
+            return path
+
+        #Find the next position.
+        for dx, dy in directions:
+            neighbor_pos = (current_pos[0] + dx, current_pos[1] + dy) #calculate neighbor position
+            x, y = neighbor_pos #get x and y of neighbor position
+            if (0 <= x < cols and 0 <= y < rows) and (grid[y][x] != 0): #determine if neighbor position is on the grid and if it is an obstacle
+                if neighbor_pos not in visited: #neighbor point is not visited
+                    h_cost = ((end_row - x) ** 2 + (end_col - y) ** 2)**0.5  # Calculate heuristic cost for the neighbor
+                    new_node = Node(        #make a new node to save neighbor position, two costs and current node
+                        neighbor_pos,
+                        current_node.cost_from_start + 1,
+                        h_cost,
+                        current_node
+                    )
+                    open_list.append(new_node) #add new node into open_list
+    display_message(f"No valid path found!") #No valid path is found
+    return [] #return a empty list if there are no valid path.
