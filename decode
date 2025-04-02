@@ -1,0 +1,82 @@
+#Start of skeleton code
+#Q1 Answer: 669
+#Q2 Answer: 18
+#Q3 Answer: 2018-04-16
+
+import struct
+import csv
+from datetime import datetime, timezone, timedelta
+
+#Open the binary input file
+file_path = "/home/mscrobotics2425laptop17/Desktop/Autonomous Mobile Robots40492/coursework1/binaryFileC_118.bin" 
+input_file = open(file_path, 'rb')
+data = input_file.read()       #reading data
+input_file.close()
+
+# the path of the output file
+output_file_path = "/home/mscrobotics2425laptop17/Desktop/Autonomous Mobile Robots40492/coursework1/p1.csv"
+
+# temperature table
+temp_lookup = {i: 30 + (i - 0xA0) * 0.1 for i in range(0xA0, 0xE0)}
+
+def calculate_checksum(data):
+    checksum = 255 - (sum(data) % 256)        #caluculate the checksum
+    return checksum
+
+def decode_frame(frame):           #decode 26 bytes of data frame
+    header = "~~"
+    sys_id = frame[2]              #assign a value to each heading
+    dest_id = frame[3]
+    comp_id = frame[4]
+    seq = frame[5]
+    msg_type = frame[6]
+    ptx = "P"                      # the value of ptx is P
+    rpm = int.from_bytes(frame[8:10], byteorder='big', signed=False)             #an unsigned integer
+    voltage = int.from_bytes(frame[10:12], byteorder='big', signed=False)
+    current = int.from_bytes(frame[12:14], byteorder='big', signed=True)         #an signed integer
+    mos_temp = temp_lookup.get(frame[14], 0.0)            #query temperature table
+    cap_temp = temp_lookup.get(frame[15], 0.0)
+    ttx = "T"                      # the value of ttx is T
+    timestamp = int.from_bytes(frame[17:25], byteorder='big', signed=False)
+    time_readable = f"{timestamp}"  # formatting
+    checksum = frame[25]    #original checksum
+    return [header, sys_id, dest_id, comp_id, seq, msg_type, ptx, rpm, voltage, current, mos_temp, cap_temp, ttx, time_readable, checksum]
+
+# start decoding
+frame_start_pattern = b'%%'       #%% represents the start symbol
+frame_length = 26                 #the length of the frame is 26
+complete_frames = 0               #initializes the number of complete frames
+corrupt_frames = 0                #initializes the number of corrupt frames
+first_tim=None
+
+with open(output_file_path, 'w', newline='') as output_file:       #write the result and title to the output file
+    csv_writer = csv.writer(output_file)
+    csv_writer.writerow(["Header", "SYS ID", "DEST ID", "COMP ID", "SEQ", "TYPE", "PTX", "RPM", "Voltage", "Current", "MOS Temp", "CAP Temp", "TTX", "Time", "Checksum"])
+    i = 0
+    while i <= len(data) - frame_length:
+        if data[i:i+2] == frame_start_pattern:          #find the start sign %%
+            frame = data[i:i+frame_length]
+            calculated_checksum = calculate_checksum(frame[2:25])
+            frame_checksum = frame[25]
+            decoded_values = decode_frame(frame)         #decode the frame
+            decoded_values[10]=(f"{decoded_values[10]:.1f}")         #keep one decimal place
+            decoded_values[11]=(f"{decoded_values[11]:.1f}")
+            csv_writer.writerow(decoded_values)              #write the result
+            complete_frames += 1             #count complete frame
+            if calculated_checksum != frame_checksum:
+                corrupt_frames += 1          #count corrupt frame
+            i += frame_length  # next frame
+            timestamp = int.from_bytes(frame[17:25], byteorder='big', signed=False)
+            if first_tim is None:
+                first_tim = timestamp         #first timestamp is calendar date
+        else:
+            i += 1
+
+seconds = timestamp // 1_000_000          #convert the first timestamp to seconds
+microseconds = timestamp % 1_000_000 
+utc_time = datetime.fromtimestamp(seconds, tz=timezone.utc) + timedelta(microseconds=microseconds)    #convert it to utc time
+
+# output
+print(f"Q1 Answer: complete data frames are：{complete_frames}")            #print three answers
+print(f"Q2 Answer: damaged frames are：{corrupt_frames}")
+print(f"Q3 Answer: the calendar date is："+utc_time.strftime("%Y-%m-%d"))
